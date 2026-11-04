@@ -1,0 +1,30 @@
+{
+  "name": "waybill",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @waybill/web dev",
+    "build": "pnpm --filter @waybill/web build",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json && pnpm -r --if-present typecheck",
+    "test": "vitest run",
+    "trace": "tsx scripts/trace.ts",
+    "fixtures:record": "tsx scripts/record-fixtures.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
+    "eslint": "^10.13.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "~8.71.1",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@waybill/core": "workspace:*"
+  }
+}
