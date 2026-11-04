@@ -1,0 +1,16 @@
+{
+  "name": "@waybill/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@defuse-protocol/one-click-sdk-typescript": "0.1.26",
+    "zod": "^4.6.7"
+  }
+}
