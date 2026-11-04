@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+/*
+  Waybill identity: a shipping document. Warm paper, carbon-black ink, ruled lines, monospace for
+  anything a reader might copy (addresses, hashes). Color is reserved for the state of a leg and is
+  printed like ink stamps: verified green, reported blue, waiting amber, conflict/missing red,
+  private violet. No gradients, no glass, no shadows deeper than a sheet resting on a desk.
+*/
+:root {
+  --desk: #e9e4d8;
+  --paper: #fbf8f1;
+  --paper-2: #f3eee2;
+  --rule: #d9d1bf;
+  --rule-strong: #b9ae96;
+  --ink: #1d1a14;
+  --muted: #6b6455;
+  --verified: #1f6b3a;
+  --reported: #2a5a9e;
+  --waiting: #9a6100;
+  --conflict: #b3261e;
+  --private: #6b4bb3;
+  --focus: #2a5a9e;
+  --sheet-shadow: 0 1px 0 rgb(0 0 0 / 0.04), 0 18px 40px -28px rgb(60 45 20 / 0.45);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --desk: #12110e;
+    --paper: #1b1a16;
+    --paper-2: #23211c;
+    --rule: #3a362d;
+    --rule-strong: #565044;
+    --ink: #ece6d8;
+    --muted: #a39b88;
+    --verified: #6fcf8f;
+    --reported: #8fb4f0;
+    --waiting: #e8b55a;
+    --conflict: #f08a80;
+    --private: #b9a3f0;
+    --focus: #8fb4f0;
+    --sheet-shadow: 0 18px 40px -28px rgb(0 0 0 / 0.8);
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
+  --color-desk: var(--desk);
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-verified: var(--verified);
+  --color-reported: var(--reported);
+  --color-waiting: var(--waiting);
+  --color-conflict: var(--conflict);
+  --color-private: var(--private);
+}
+
+body {
+  background: var(--desk);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* A sheet of paper with a perforated tear line at the top. */
+.sheet {
+  background: var(--paper);
+  box-shadow: var(--sheet-shadow);
+  position: relative;
+}
+.sheet::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 6px;
+  background: radial-gradient(circle at 6px -2px, var(--desk) 4px, transparent 4.5px) 0 0 / 12px 6px repeat-x;
+}
+
+/* Rubber-stamp verdict. Slight rotation and an uneven border sell it without being cute. */
+.stamp {
+  border: 2.5px solid currentColor;
+  border-radius: 6px;
+  transform: rotate(-4deg);
+  letter-spacing: 0.14em;
+  mix-blend-mode: multiply;
+  animation: stamp-in 420ms var(--ease-out) both;
+}
+@media (prefers-color-scheme: dark) {
+  .stamp {
+    mix-blend-mode: normal;
+  }
+}
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+    transform: rotate(-4deg) scale(1.25);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-4deg) scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stamp {
+    animation: none;
+  }
+}
