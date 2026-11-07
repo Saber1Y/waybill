@@ -244,6 +244,7 @@ pnpm dev  # http://localhost:3020
 | Variable | Purpose |
 | --- | --- |
 | `NEAR_INTENTS_JWT` | Partner JWT: enables the Explorer API and partner-scoped 1Click status |
+| `NEAR_AI_API_KEY` | NEAR AI Cloud key for the plain-language case summary (not used yet) |
 | `NEAR_RPC_URL` | Overrides the archival NEAR RPC (default `archival-rpc.mainnet.fastnear.com`) |
 
 ## Deploy
