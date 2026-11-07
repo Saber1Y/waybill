@@ -1,7 +1,7 @@
 # Waybill
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
-![Tests](https://img.shields.io/badge/tests-14%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-19%20passing-brightgreen)
 ![Onchain](https://img.shields.io/badge/onchain-NEAR%20mainnet%20(read--only)-blue)
 ![Loop](https://img.shields.io/badge/loop-quote%20%E2%86%92%20deposit%20%E2%86%92%20settle%20%E2%86%92%20payout-blueviolet)
 ![Stack](https://img.shields.io/badge/stack-Next.js%20+%20TypeScript%20+%20NEAR%20RPC-orange)
@@ -11,6 +11,7 @@
 When a NEAR Intents swap stalls, the user gets one status string and a support queue.
 Waybill asks 1Click, the NEAR Intents explorer and the chains themselves about one deposit address, draws each leg of the swap, and marks the exact leg where the sources stop agreeing.
 When a documented promise is broken, it writes a case file with every response it used, hashed, ready to paste into a support ticket or a GitHub issue.
+Its route reliability page counts a full day of NEAR Intents swaps per chain route, so anyone can see how often a route completes before sending.
 
 Live frontend: not deployed yet · Backend: none, read-only server components · Contracts: none yet.
 
@@ -29,6 +30,7 @@ Waybill holds no keys, moves no money and cannot recover funds; it only reads pu
   - [Find a wrong-chain deposit](#find-a-wrong-chain-deposit)
   - [Check the quote signature](#check-the-quote-signature)
   - [Write the case file](#write-the-case-file)
+  - [Measure route reliability](#measure-route-reliability)
 - [Architecture](#architecture)
 - [Component by component](#component-by-component)
 - [Safety, enforced in code](#safety-enforced-in-code)
@@ -107,6 +109,21 @@ curl "http://localhost:3020/track/<depositAddress>/case?tx=<depositTx>"  # Markd
 The case file lists what the quote promised, each finding with the documented rule it breaks, the legs, and every evidence row with its SHA-256.
 Its case hash covers the evidence hashes and findings, so an edited packet is detectable.
 
+### Measure route reliability
+
+```bash
+cd Waybill
+pnpm routes:collect --hours 24 --settle 2  # needs NEAR_INTENTS_JWT, about ten minutes
+```
+
+The collector pages through every funded swap the Explorer API lists for a 24-hour window and writes `data/routes/snapshot.json.gz`.
+The window closes two hours before collection, so a swap still `PROCESSING` had at least two hours to finish and is counted as stuck.
+`/routes` shows, per origin and destination chain, how many swaps completed, were refunded, stuck or failed, each completion rate with a 95% Wilson interval, why refunds happened, and every stuck or failed swap as a link into the tracker.
+The snapshot keeps the SHA-256 of every API page it was built from, and deposit addresses only for swaps that did not succeed.
+
+The committed snapshot covers 2026-11-06 11:00 to 2026-11-07 11:00 UTC: 19,937 swaps across 387 chain routes, 98.51% completed (95% interval 98.34% to 98.67%), 274 refunded, 18 failed and 4 still processing after at least two hours.
+Most busy routes sit between 99% and 100%; the clear outlier is NEAR to NEAR at 63.9% of 543, where 152 of 185 refunds were `NO_LIQUIDITY`.
+
 ## Architecture
 
 **Decision one: read-only.** Waybill has no wallet, no keys and no write path; it cannot make a stuck swap worse.
@@ -140,13 +157,14 @@ flowchart TB
 | --- | --- |
 | `evidence.ts` | Fetch a URL and keep the raw response, time and SHA-256 |
 | `sources/oneclick.ts` | 1Click status (signed quote, tx hashes) and the public token list |
-| `sources/explorer.ts` | Explorer API search (JWT) and the public explorer page fallback |
+| `sources/explorer.ts` | Explorer API search and history pages (JWT) and the public explorer page fallback |
 | `sources/near-rpc.ts` | NEAR transactions and their `intents.near` events and token movements |
 | `sources/evm-rpc.ts` | Receipts on eight EVM chains, native and ERC-20 transfers to an address |
 | `verify.ts` | Quote signature check through the official 1Click SDK |
 | `legs.ts` | Quote, deposit, settlement, payout states from the observations |
 | `rules.ts` | Findings: deadline passed, PROCESSING with no intent, wrong chain, paid elsewhere, private leg |
 | `case.ts` | The Markdown case file and its hash |
+| `routes.ts` | Route snapshot format, per-route outcomes and Wilson intervals |
 | `trace.ts` | `observe` (gather) and `judge` (decide), kept separate so judging is pure and testable |
 | `replay.ts` | Record and replay real HTTP traffic for tests |
 
@@ -159,6 +177,7 @@ flowchart TB
 | An API statement is never shown as proof | `reported` vs `verified` leg states; only on-chain reads and valid signatures verify |
 | A failed signature check is not an accusation | `SignatureCheck` is `valid`, `unverified` or `absent`, and `unverified` is an info finding |
 | Tests do not hit the network | `replayFetch` throws on any request that was not recorded |
+| A route rate never overstates a small sample | Rates show from 30 complete deposits, always with a 95% interval |
 
 ## How it uses NEAR
 
@@ -174,6 +193,9 @@ The Confidential Intents treasury (`51e8f94d…7cbe`, `PRIVATE_TREASURY_ACCOUNT_
 
 **Two deadlines exist.** The request's `deadline` and the quote's `deadline` (when the deposit address may stop working) differ; Waybill uses the quote's, the later and more conservative one, before calling a swap overdue.
 
+**The Explorer API is not the whole picture.** By default it hides `PENDING_DEPOSIT` and `INCOMPLETE_DEPOSIT`, so the tracker asks for every status; and it does not list Confidential Intents swaps at all (near/intents#384 is on the public explorer page but absent from the API), so route statistics cover public swaps only.
+It also has no completion time, so Waybill reports outcomes per route, not durations.
+
 **Fixtures are recorded, not written.** `pnpm fixtures:record` captures real mainnet responses; tests replay them, so they fail if parsing drifts from what the services really return.
 
 ## What's real vs pending
@@ -185,9 +207,9 @@ The Confidential Intents treasury (`51e8f94d…7cbe`, `PRIVATE_TREASURY_ACCOUNT_
 | NEAR settlement verification from `intents.near` events | Real - read from archival RPC |
 | Quote signature verification | Real - verifies on some live swaps; others are reported "unverified" (open question below) |
 | Case file download with evidence hashes | Real |
-| Explorer API (any swap, history) | Implemented, not yet tested - needs a partner JWT |
+| Explorer API lookup of any swap | Real - tested with a partner JWT on 2026-11-07 |
+| Route reliability from a day of Explorer API history | Real - `pnpm routes:collect`, rendered at `/routes` |
 | Payout verification on non-EVM chains (BTC, Solana, Tron, TON) | Not yet established |
-| Route reliability stats (Thesis track) | Not yet established |
 | Watch mode and alerts | Not yet established |
 | NEAR AI Cloud plain-language summary | Not yet established |
 | On-chain case anchoring | Not yet established |
@@ -201,13 +223,14 @@ Open question: why some status-embedded quotes do not verify with `verifyQuoteSi
 | `trace.test.ts` | 5 | Recorded mainnet cases: #384, #382, a signed refund, a live Ethereum to Tron swap, case hash |
 | `rules.test.ts` | 5 | #399's shape (rebuilt from the issue text), grace period, terminal states, disagreement, wrong recipient |
 | `swap.test.ts` | 4 | Asset chain mapping, explorer page record extraction |
+| `routes.test.ts` | 5 | Wilson interval, route grouping, incomplete deposits kept out of rates, de-duplication, snapshot encoding |
 
 ```bash
 cd Waybill
 pnpm test && pnpm typecheck && pnpm lint && pnpm build
 ```
 
-All four pass as of 2026-11-04.
+All four pass as of 2026-11-07.
 
 ## Run it locally
 
@@ -238,6 +261,7 @@ pnpm dev  # http://localhost:3020
 2. Paste `0xDF7A93d400159d0f8f40AAe42576d01285EA9e39` and the transaction `0x4ae0bb73e8efe79bf5a3aedeb0302371ab0d7fe0a918ebd0b1c8054a9807c593`.
 3. See the stamp "Not found", the Deposit leg in conflict with a Basescan link, and the finding "Deposit landed on Base".
 4. Click "Download case file" and see the Markdown packet with every response's SHA-256.
+5. Open http://localhost:3020/routes and see a day of swaps per route; click any stuck swap to trace it.
 
 ## Configuration
 
@@ -259,8 +283,9 @@ Waybill/
   packages/core/
     src/            sources, legs, rules, case, trace (tests next to the code)
     fixtures/       recorded mainnet responses for the test cases
-  apps/web/         Next.js tracker: /, /track/[address], /track/[address]/case
-  scripts/          trace.ts (CLI), record-fixtures.ts
+  data/routes/      snapshot.json.gz: a day of Explorer API history for /routes
+  apps/web/         Next.js tracker: /, /track/[address], /track/[address]/case, /routes
+  scripts/          trace.ts (CLI), record-fixtures.ts, collect-routes.ts
 ```
 
 ## Tech stack, credits, roadmap
@@ -276,10 +301,10 @@ No code from earlier projects is reused; all code was written during the hackath
 
 ### Roadmap
 
-1. Test the Explorer API path with a partner JWT.
-2. Payout reads for BTC, Solana and Tron.
-3. Route reliability page from Explorer API history.
-4. NEAR AI Cloud summary where every sentence cites an evidence row.
+1. Payout reads for BTC, Solana, Tron and TON.
+2. Pre-send check of a deposit address against its signed quote.
+3. NEAR AI Cloud summary where every sentence cites an evidence row.
+4. Case hashes anchored on NEAR.
 5. Watch mode for wallets: alert when a swap passes its deadline, case file attached.
 
 ## Disclaimer & license
