@@ -11,3 +11,4 @@ export * from "./swap";
 export * from "./trace";
 export * from "./verify";
 export * from "./replay";
+export * from "./routes";
