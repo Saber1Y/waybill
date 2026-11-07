@@ -19,7 +19,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/" className="font-mono text-sm font-semibold tracking-[0.2em] uppercase">
             Waybill
           </Link>
-          <span className="font-mono text-xs text-muted">for NEAR Intents swaps</span>
+          <nav aria-label="Main" className="flex gap-5 font-mono text-xs text-muted">
+            <Link href="/" className="hover:text-ink">
+              Track a swap
+            </Link>
+            <Link href="/routes" className="hover:text-ink">
+              Route reliability
+            </Link>
+          </nav>
         </header>
         <main id="main" className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
           {children}

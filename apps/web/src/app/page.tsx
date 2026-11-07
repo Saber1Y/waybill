@@ -78,6 +78,17 @@ export default function Home() {
           ))}
         </ul>
       </section>
+
+      <section className="space-y-2">
+        <h2 className="font-mono text-xs tracking-[0.14em] text-muted uppercase">Before you send</h2>
+        <p className="max-w-2xl leading-relaxed text-pretty text-muted">
+          How often does your route actually complete?{" "}
+          <Link href="/routes" className="text-ink underline decoration-rule-strong underline-offset-4 hover:decoration-ink">
+            See a day of NEAR Intents swaps, route by route
+          </Link>
+          .
+        </p>
+      </section>
     </div>
   );
 }

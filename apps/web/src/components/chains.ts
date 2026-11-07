@@ -1,0 +1,42 @@
+/** Display names for 1Click chain ids. Unknown ids show as written, never guessed. */
+const CHAIN_NAMES: Record<string, string> = {
+  abs: "Abstract",
+  aleo: "Aleo",
+  aptos: "Aptos",
+  arb: "Arbitrum",
+  avax: "Avalanche",
+  base: "Base",
+  bch: "Bitcoin Cash",
+  bera: "Berachain",
+  bsc: "BNB Chain",
+  btc: "Bitcoin",
+  cardano: "Cardano",
+  dash: "Dash",
+  doge: "Dogecoin",
+  eth: "Ethereum",
+  fogo: "Fogo",
+  gnosis: "Gnosis",
+  hood: "Robinhood Chain",
+  hypercore: "Hyperliquid",
+  ltc: "Litecoin",
+  monad: "Monad",
+  movement: "Movement",
+  near: "NEAR",
+  op: "Optimism",
+  plasma: "Plasma",
+  pol: "Polygon",
+  scroll: "Scroll",
+  sol: "Solana",
+  starknet: "Starknet",
+  stellar: "Stellar",
+  sui: "Sui",
+  ton: "TON",
+  tron: "Tron",
+  xlayer: "X Layer",
+  xrp: "XRP Ledger",
+  zec: "Zcash",
+};
+
+export function chainName(id: string): string {
+  return CHAIN_NAMES[id] ?? id;
+}
