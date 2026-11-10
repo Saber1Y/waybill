@@ -13,7 +13,7 @@ Waybill asks 1Click, the NEAR Intents explorer and the chains themselves about o
 When a documented promise is broken, it writes a case file with every response it used, hashed, ready to paste into a support ticket or a GitHub issue.
 Its route reliability page counts a full day of NEAR Intents swaps per chain route, so anyone can see how often a route completes before sending.
 
-Live frontend: not deployed yet · Backend: none, read-only server components · Contracts: none yet.
+Live frontend: https://waybill-gules.vercel.app · Backend: none, read-only server components · Contracts: none yet.
 
 [See it in one command](#see-it-in-one-command) · [The one rule](#the-one-rule) · [What Waybill does](#what-waybill-does) · [What's real vs pending](#whats-real-vs-pending) · [The one-flow demo](#the-one-flow-demo)
 
@@ -273,7 +273,8 @@ pnpm dev  # http://localhost:3020
 
 ## Deploy
 
-Not deployed yet.
+Production runs on Vercel at https://waybill-gules.vercel.app, deployed from `main` with the root directory set to `apps/web` and Node 24.
+The route page is prerendered at build time from `data/routes/snapshot.json.gz`; traces run live on each request.
 Any Node host that runs Next.js works; set the variables above in its environment.
 
 ## Project layout
