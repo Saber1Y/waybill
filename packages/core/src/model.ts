@@ -1,5 +1,5 @@
 import type { Evidence } from "./evidence";
-import type { EvmTransfer } from "./sources/evm-rpc";
+import type { ChainTx } from "./sources/chains";
 import type { NearTx } from "./sources/near-rpc";
 import type { TokenInfo } from "./sources/oneclick";
 import type { SwapRecord } from "./swap";
@@ -15,9 +15,10 @@ export interface Observations {
   records: SwapRecord[];
   signature: SignatureCheck;
   nearTxs: NearTx[];
-  /** Origin-chain lookups, including every chain searched for the user's tx hash. */
-  originTxs: EvmTransfer[];
-  destinationTxs: EvmTransfer[];
+  /** Origin-chain reads, including every EVM chain searched for the user's tx hash. */
+  originTxs: ChainTx[];
+  /** Destination-chain reads of the payout transactions the sources list. */
+  destinationTxs: ChainTx[];
   /** Asset id -> symbol and chain, from the public 1Click token list. */
   tokens: Map<string, TokenInfo>;
   /** Sources that were asked; whether they knew the swap or not. */
@@ -57,6 +58,7 @@ export interface Finding {
     | "DEADLINE_PASSED_UNRESOLVED"
     | "PROCESSING_WITHOUT_INTENT"
     | "SUCCESS_WITHOUT_PAYOUT_PROOF"
+    | "PAYOUT_NOT_TO_RECIPIENT"
     | "PAID_TO_OTHER_ACCOUNT"
     | "CONFIDENTIAL_LEG"
     | "SOURCES_DISAGREE"

@@ -104,10 +104,18 @@ export interface TokenInfo {
   /** 1Click chain id: "eth", "base", "near", "btc", ... */
   blockchain: string;
   decimals: number;
+  /** Token contract, mint or jetton master on its own chain; absent for the chain's native coin. */
+  contractAddress?: string;
 }
 
 const tokensSchema = z.array(
-  z.looseObject({ assetId: z.string(), symbol: z.string(), blockchain: z.string(), decimals: z.number() }),
+  z.looseObject({
+    assetId: z.string(),
+    symbol: z.string(),
+    blockchain: z.string(),
+    decimals: z.number(),
+    contractAddress: z.string().nullish(),
+  }),
 );
 
 /** GET /v0/tokens, public. Maps asset ids to symbol and chain. */
@@ -115,6 +123,16 @@ export async function getTokens(opts: FetchOptions = {}): Promise<{ evidence: Ev
   const evidence = await capture("oneclick-tokens", "1Click supported tokens", `${ONECLICK_BASE_URL}/v0/tokens`, opts);
   const parsed = tokensSchema.safeParse(parseBody(evidence));
   const tokens = new Map<string, TokenInfo>();
-  if (parsed.success) for (const t of parsed.data) tokens.set(t.assetId, { assetId: t.assetId, symbol: t.symbol, blockchain: t.blockchain, decimals: t.decimals });
+  if (parsed.success) {
+    for (const t of parsed.data) {
+      tokens.set(t.assetId, {
+        assetId: t.assetId,
+        symbol: t.symbol,
+        blockchain: t.blockchain,
+        decimals: t.decimals,
+        ...(t.contractAddress ? { contractAddress: t.contractAddress } : {}),
+      });
+    }
+  }
   return { evidence, tokens };
 }

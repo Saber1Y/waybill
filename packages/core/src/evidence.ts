@@ -1,6 +1,16 @@
 import { createHash } from "node:crypto";
 
-export type SourceId = "oneclick-status" | "oneclick-tokens" | "explorer-api" | "explorer-page" | "near-rpc" | "evm-rpc";
+export type SourceId =
+  | "oneclick-status"
+  | "oneclick-tokens"
+  | "explorer-api"
+  | "explorer-page"
+  | "near-rpc"
+  | "evm-rpc"
+  | "btc-api"
+  | "sol-rpc"
+  | "tron-api"
+  | "ton-api";
 
 /** Sources that describe the swap itself (as opposed to chain reads and reference data). */
 export const SWAP_SOURCES: readonly SourceId[] = ["oneclick-status", "explorer-api", "explorer-page"];

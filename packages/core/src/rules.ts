@@ -1,6 +1,7 @@
 import { SWAP_SOURCES } from "./evidence";
 import type { Finding, Observations } from "./model";
-import { paysAddress, EVM_CHAINS } from "./sources/evm-rpc";
+import { payoutCheck } from "./legs";
+import { chainLabel, paidTo } from "./sources/chains";
 import { assetChain, CONFIDENTIAL_TREASURY, isTerminal, type SwapRecord } from "./swap";
 
 const DOCS_STATUS = "https://docs.near-intents.org/integration/distribution-channels/1click-api/about-1click-api";
@@ -15,7 +16,7 @@ export function findings(obs: Observations): Finding[] {
   const now = Date.parse(obs.observedAt);
   const out: Finding[] = [];
 
-  const landed = obs.originTxs.filter((tx) => paysAddress(tx, obs.depositAddress));
+  const landed = obs.originTxs.filter((tx) => paidTo(tx, obs.depositAddress));
   const expectedChain = primary ? assetChain(primary.originAsset, obs.tokens) : null;
 
   if (!primary) {
@@ -33,12 +34,12 @@ export function findings(obs: Observations): Finding[] {
 
   for (const tx of landed) {
     if (expectedChain && tx.chain === expectedChain) continue;
-    const chain = EVM_CHAINS[tx.chain]?.name ?? tx.chain;
+    const chain = chainLabel(tx.chain);
     out.push({
       code: "WRONG_CHAIN_DEPOSIT",
       severity: "critical",
-      title: `Deposit landed on ${chain}${expectedChain ? `, but the quote expects ${EVM_CHAINS[expectedChain]?.name ?? expectedChain}` : ""}`,
-      detail: `Transaction ${tx.txHash} paid the deposit address on ${chain} in block ${tx.blockNumber}. The same address exists on every EVM chain, but 1Click only watches the chain the quote was issued for, so this deposit will not be picked up automatically.`,
+      title: `Deposit landed on ${chain}${expectedChain ? `, but the quote expects ${chainLabel(expectedChain)}` : ""}`,
+      detail: `Transaction ${tx.txHash} paid the deposit address on ${chain} in block ${tx.block}. The same address exists on every EVM chain, but 1Click only watches the chain the quote was issued for, so this deposit will not be picked up automatically.`,
       evidenceIds: [tx.evidence.id],
     });
   }
@@ -146,6 +147,20 @@ function successChecks(primary: SwapRecord, obs: Observations): Finding[] {
         title: "Reported SUCCESS, but no token movement reached the recipient",
         detail: `The settlement transactions moved tokens to ${receivers.join(", ")}, not to the quoted recipient ${primary.recipient}.`,
         evidenceIds: [...new Set(movements.map((m) => m.evidenceId))],
+      });
+    }
+  }
+
+  if (primary.recipientType === "DESTINATION_CHAIN" && primary.destinationTxHashes.length > 0) {
+    const check = payoutCheck(obs, primary);
+    if (!check.paid && check.unpaid.length > 0) {
+      out.push({
+        code: "PAYOUT_NOT_TO_RECIPIENT",
+        severity: "critical",
+        title: `Reported SUCCESS, but the ${chainLabel(check.chain)} payout did not reach the recipient`,
+        detail: `${check.unpaid.map((tx) => tx.txHash).join(", ")} executed on ${chainLabel(check.chain)}, but none of it went to ${primary.recipient}${check.token ? ` in ${check.token.symbol}` : ""}.`,
+        rule: { text: "A swap either completes or is refunded to the refund address.", href: DOCS_STATUS },
+        evidenceIds: check.unpaid.map((tx) => tx.evidence.id),
       });
     }
   }

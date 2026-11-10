@@ -1,6 +1,7 @@
 import { SWAP_SOURCES } from "./evidence";
 import type { Leg, Observations } from "./model";
-import { EVM_CHAINS, paysAddress } from "./sources/evm-rpc";
+import type { TokenInfo } from "./sources/oneclick";
+import { CHAIN_INFO, chainAsset, chainLabel, paidTo, type ChainTx } from "./sources/chains";
 import { EXPLORER_BASE_URL } from "./sources/explorer";
 import { assetChain, CONFIDENTIAL_TREASURY, type SwapRecord } from "./swap";
 
@@ -48,23 +49,20 @@ function quoteLeg(obs: Observations, p: SwapRecord | null): Leg {
 }
 
 function depositLeg(obs: Observations, p: SwapRecord | null): Leg {
-  const landed = obs.originTxs.filter((tx) => paysAddress(tx, obs.depositAddress));
+  const landed = obs.originTxs.filter((tx) => paidTo(tx, obs.depositAddress));
   const expected = p ? assetChain(p.originAsset, obs.tokens) : null;
   const onExpected = landed.filter((tx) => tx.chain === expected);
   const elsewhere = landed.filter((tx) => tx.chain !== expected);
-  const links = landed.map((tx) => ({
-    label: `${EVM_CHAINS[tx.chain]?.name ?? tx.chain} tx`,
-    href: `${EVM_CHAINS[tx.chain]?.explorer}/tx/${tx.txHash}`,
-  }));
+  const links = landed.map((tx) => txLink(tx, "tx"));
   const evidenceIds = [...landed.map((tx) => tx.evidence.id), ...(p ? [p.evidenceId] : [])];
   const base = { key: "deposit" as const, title: "Deposit", links, evidenceIds, at: null };
 
   if (elsewhere.length > 0 && (onExpected.length === 0 || !p)) {
-    const chains = elsewhere.map((tx) => EVM_CHAINS[tx.chain]?.name ?? tx.chain).join(", ");
-    return { ...base, state: "conflict", summary: `The deposit landed on ${chains}${expected ? `, not ${EVM_CHAINS[expected]?.name ?? expected}` : ""}.` };
+    const chains = elsewhere.map((tx) => chainLabel(tx.chain)).join(", ");
+    return { ...base, state: "conflict", summary: `The deposit landed on ${chains}${expected ? `, not ${chainLabel(expected)}` : ""}.` };
   }
   if (onExpected.length > 0) {
-    return { ...base, state: "verified", summary: `Deposit confirmed on ${EVM_CHAINS[expected ?? ""]?.name ?? expected}, read from the chain.` };
+    return { ...base, state: "verified", summary: `Deposit confirmed on ${chainLabel(expected ?? "")}, read from the chain.` };
   }
   if (!p) return { ...base, state: "missing", summary: "No deposit found." };
   if (p.status === "PENDING_DEPOSIT") return { ...base, state: "waiting", summary: "1Click is still waiting for the deposit to arrive." };
@@ -107,10 +105,7 @@ function payoutLeg(obs: Observations, p: SwapRecord | null): Leg {
     key: "payout" as const,
     title: refund ? "Refund" : "Payout",
     at: p?.updatedAt ?? null,
-    links: obs.destinationTxs.map((tx) => ({
-      label: `${EVM_CHAINS[tx.chain]?.name ?? tx.chain} payout`,
-      href: `${EVM_CHAINS[tx.chain]?.explorer}/tx/${tx.txHash}`,
-    })),
+    links: obs.destinationTxs.map((tx) => txLink(tx, "payout")),
     evidenceIds: obs.destinationTxs.map((tx) => tx.evidence.id),
   };
   if (!p) return { ...base, state: "not-applicable", summary: "No swap to pay out." };
@@ -140,14 +135,70 @@ function payoutLeg(obs: Observations, p: SwapRecord | null): Leg {
     if (reached) return { ...base, state: "verified", summary: `Tokens reached ${p.recipient} on intents.near, read from the chain.` };
     return { ...base, state: movements.length > 0 ? "conflict" : "reported", summary: movements.length > 0 ? `Settlement moved tokens, but none to ${p.recipient}.` : "1Click reports delivery inside NEAR Intents." };
   }
-  const paid = obs.destinationTxs.filter((tx) => tx.found && tx.succeeded);
-  if (paid.length > 0) return { ...base, state: "verified", summary: `Payout confirmed on ${EVM_CHAINS[paid[0]?.chain ?? ""]?.name}, read from the chain.` };
+  const check = payoutCheck(obs, p);
+  if (check.paid) {
+    const amount = check.paid.amount === null ? "Tokens" : formatAmount(check.paid.amount, check.token);
+    return { ...base, state: "verified", summary: `${amount} reached ${p.recipient} on ${chainLabel(check.chain)}, read from the chain.` };
+  }
+  if (check.unpaid.length > 0) {
+    return { ...base, state: "conflict", summary: `The listed payout transaction on ${chainLabel(check.chain)} did not pay ${p.recipient}${check.token ? ` in ${check.token.symbol}` : ""}.` };
+  }
+  if (check.pending.length > 0) return { ...base, state: "waiting", summary: `The payout transaction on ${chainLabel(check.chain)} is not final yet.` };
+  if (check.absent.length > 0) return { ...base, state: "missing", summary: `1Click lists a payout transaction that ${chainLabel(check.chain)} does not have.` };
   if (p.destinationTxHashes.length > 0) return { ...base, state: "reported", summary: `1Click lists ${p.destinationTxHashes.length} payout transaction(s) on a chain Waybill cannot read yet.` };
   return { ...base, state: "missing", summary: "Reported SUCCESS, but no payout transaction is listed." };
 }
 
-/** "1.5 WBTC on eth"-style label from the token list; the raw asset id when the list does not have it. */
+export interface PayoutCheck {
+  chain: string;
+  token: TokenInfo | undefined;
+  /** What the listed transactions delivered to the recipient, in the quoted token. */
+  paid: { amount: bigint | null } | null;
+  /** Final transactions that delivered nothing to the recipient in the quoted token. */
+  unpaid: ChainTx[];
+  /** Found but not final (an unconfirmed Bitcoin transaction). */
+  pending: ChainTx[];
+  /** Listed by 1Click but unknown to the chain. */
+  absent: ChainTx[];
+}
+
+/** Compares the destination-chain reads with the quote: right recipient, right token. */
+export function payoutCheck(obs: Observations, p: SwapRecord): PayoutCheck {
+  const chain = p.destinationAsset ? assetChain(p.destinationAsset, obs.tokens) : "";
+  const token = p.destinationAsset ? obs.tokens.get(p.destinationAsset) : undefined;
+  const asset = chainAsset(chain, token);
+  const final = obs.destinationTxs.filter((t) => t.found && t.succeeded);
+  const hits = final.map((tx) => ({ tx, hit: p.recipient ? paidTo(tx, p.recipient, asset) : null }));
+  const amounts = hits.flatMap(({ hit }) => (hit ? [hit.amount] : []));
+  const paid =
+    amounts.length === 0 ? null : { amount: amounts.includes(null) ? null : amounts.reduce<bigint>((sum, a) => sum + (a ?? 0n), 0n) };
+  const unpaid = hits.filter(({ hit }) => !hit).map(({ tx }) => tx);
+  return {
+    chain,
+    token,
+    paid,
+    unpaid: paid ? [] : unpaid,
+    pending: obs.destinationTxs.filter((t) => t.found && !t.succeeded),
+    absent: obs.destinationTxs.filter((t) => !t.found),
+  };
+}
+
+function txLink(tx: ChainTx, kind: string): { label: string; href: string } {
+  const info = CHAIN_INFO[tx.chain];
+  return { label: `${info?.name ?? tx.chain} ${kind}`, href: info ? info.txUrl(tx.txHash) : tx.txHash };
+}
+
+/** Raw units to "49.836098 USDT"; the raw integer when the token is unknown. */
+export function formatAmount(amount: bigint, token: TokenInfo | undefined): string {
+  if (!token) return amount.toString();
+  const scale = 10n ** BigInt(token.decimals);
+  const whole = amount / scale;
+  const fraction = (amount % scale).toString().padStart(token.decimals, "0").replace(/0+$/, "");
+  return `${whole}${fraction ? `.${fraction}` : ""} ${token.symbol}`;
+}
+
+/** "WBTC on Ethereum"-style label from the token list; the raw asset id when the list does not have it. */
 export function tokenLabel(assetId: string, obs: Pick<Observations, "tokens">): string {
   const token = obs.tokens.get(assetId);
-  return token ? `${token.symbol} on ${token.blockchain}` : assetId;
+  return token ? `${token.symbol} on ${chainLabel(token.blockchain)}` : assetId;
 }

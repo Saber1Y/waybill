@@ -55,6 +55,9 @@ export function isTerminal(status: SwapStatus): boolean {
 export function assetChain(assetId: string, tokens?: Map<string, { blockchain: string }>): string {
   const listed = tokens?.get(assetId)?.blockchain;
   if (listed) return listed;
+  // 1Click's newer ids name the chain directly: "1cs_v1:btc:native:coin", "1cs_v1:sol:spl:<mint>".
+  const oneClick = /^1cs_v\d+:([a-z0-9]+):/.exec(assetId);
+  if (oneClick?.[1]) return oneClick[1];
   const token = assetId.replace(/^nep\d+:/, "");
   const omft = /^([a-z0-9]+)(?:-[^.]+)?\.omft\.near$/.exec(token);
   if (omft?.[1]) return omft[1];

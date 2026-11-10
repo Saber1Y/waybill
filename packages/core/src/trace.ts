@@ -2,7 +2,9 @@ import type { Evidence, FetchOptions } from "./evidence";
 import { legs } from "./legs";
 import type { Observations, Waybill } from "./model";
 import { findings } from "./rules";
-import { EVM_CHAINS, findEvmTx, getEvmReceipt, isEvmTxHash, type EvmTransfer } from "./sources/evm-rpc";
+import { readChainTx } from "./sources/chain-read";
+import { chainAsset, type ChainTx } from "./sources/chains";
+import { findEvmTx, isEvmTxHash } from "./sources/evm-rpc";
 import { fetchExplorerPage, searchExplorerApi } from "./sources/explorer";
 import { getNearTx, type NearTx } from "./sources/near-rpc";
 import { getStatus, getTokens, type TokenInfo } from "./sources/oneclick";
@@ -22,6 +24,8 @@ export interface TraceInput extends FetchOptions {
 
 /** Most NEAR settlement transactions per swap Waybill reads. Real swaps use one to three. */
 const MAX_NEAR_TXS = 8;
+/** Most origin or destination transactions per swap Waybill reads. */
+const MAX_CHAIN_TXS = 4;
 
 export interface SourceFailure {
   label: string;
@@ -87,7 +91,7 @@ async function originLookups(
   tokens: Map<string, TokenInfo>,
   fetchOpts: FetchOptions,
   attempt: Attempt,
-): Promise<EvmTransfer[]> {
+): Promise<ChainTx[]> {
   const listed = await chainLookups(records, tokens, "origin", fetchOpts, attempt);
   if (!userTxHash || !isEvmTxHash(userTxHash) || listed.some((tx) => tx.txHash === userTxHash && tx.found)) return listed;
   // The user's hash is searched on every chain: where it exists is where the money actually went.
@@ -101,15 +105,15 @@ async function chainLookups(
   side: "origin" | "destination",
   fetchOpts: FetchOptions,
   attempt: Attempt,
-): Promise<EvmTransfer[]> {
+): Promise<ChainTx[]> {
   const primary = records[0];
-  const asset = side === "origin" ? primary?.originAsset : primary?.destinationAsset;
-  if (!asset) return [];
-  const chain = assetChain(asset, tokens);
-  if (!EVM_CHAINS[chain]) return [];
-  const hashes = unique(records.flatMap((r) => (side === "origin" ? r.originTxHashes : r.destinationTxHashes))).filter(isEvmTxHash);
-  const results = await Promise.all(hashes.map((hash) => attempt(`${chain} tx ${hash}`, () => getEvmReceipt(chain, hash, fetchOpts))));
-  return results.filter((tx): tx is EvmTransfer => tx !== null);
+  const assetId = side === "origin" ? primary?.originAsset : primary?.destinationAsset;
+  if (!assetId) return [];
+  const chain = assetChain(assetId, tokens);
+  const asset = chainAsset(chain, tokens.get(assetId));
+  const hashes = unique(records.flatMap((r) => (side === "origin" ? r.originTxHashes : r.destinationTxHashes))).slice(0, MAX_CHAIN_TXS);
+  const results = await Promise.all(hashes.map((hash) => attempt(`${chain} tx ${hash}`, () => readChainTx(chain, hash, asset, fetchOpts))));
+  return results.filter((tx): tx is ChainTx => tx !== null);
 }
 
 export function judge(obs: Observations): Waybill {
