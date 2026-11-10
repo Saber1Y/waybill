@@ -57,6 +57,27 @@ describe("trace against recorded mainnet responses", () => {
     const movements = w.observations.nearTxs.flatMap((tx) => tx.movements);
     expect(movements.length).toBeGreaterThan(0);
     expect(movements.every((m) => m.tokenId.startsWith("nep141:"))).toBe(true);
+    // The USDT payout is read on Tron itself, from the TRC-20 Transfer log.
+    expect(legState(w, "payout")).toBe("verified");
+  });
+
+  it.each([
+    ["live-sol-to-btc", "Bitcoin", "BTC"],
+    ["live-usdt-to-solana", "Solana", "USDT"],
+    ["live-tron-trx", "Tron", "TRX"],
+    ["live-eth-to-ton", "TON", "GRAM"],
+  ])("%s: reads the payout on %s and checks recipient and token", async (name, chain, symbol) => {
+    const w = await replay(name);
+    expect(w.failures).toEqual([]);
+    const payout = w.legs.find((l) => l.key === "payout");
+    expect(payout?.state).toBe("verified");
+    expect(payout?.summary).toContain(` ${symbol} reached ${w.primary?.recipient} on ${chain}`);
+    expect(codes(w)).not.toContain("PAYOUT_NOT_TO_RECIPIENT");
+  });
+
+  it("reads a Solana version 1 deposit transaction", async () => {
+    const w = await replay("live-sol-to-btc");
+    expect(legState(w, "deposit")).toBe("verified");
   });
 
   it("builds a case file whose hash changes when the evidence changes", async () => {

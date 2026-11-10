@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Observations } from "./model";
+import type { ChainTx } from "./sources/chains";
 import { findings } from "./rules";
 import type { SwapRecord } from "./swap";
 
@@ -92,5 +93,27 @@ describe("rules", () => {
     const found = findings(obs);
     expect(found.map((f) => f.code)).toEqual(["PAID_TO_OTHER_ACCOUNT"]);
     expect(found[0]?.detail).toContain("mallory.near");
+  });
+
+  it("catches SUCCESS whose Bitcoin payout went to another address", () => {
+    const success: SwapRecord = { ...issue399, status: "SUCCESS", recipient: "bc1qrecipient", destinationTxHashes: ["ab".repeat(32)] };
+    const payout: ChainTx = {
+      chain: "btc",
+      txHash: "ab".repeat(32),
+      evidence: { id: "btc-api:x" } as Observations["evidence"][number],
+      found: true,
+      succeeded: true,
+      block: 1,
+      at: null,
+      transfers: [{ to: "bc1qsomeoneelse", asset: "native", amount: 1000n }],
+    };
+    const found = findings(observations(success, "2026-10-13T08:00:00.000Z", { destinationTxs: [payout] }));
+    expect(found.map((f) => f.code)).toEqual(["PAYOUT_NOT_TO_RECIPIENT"]);
+    expect(found[0]?.detail).toContain("bc1qrecipient");
+
+    // The same transaction paying the recipient (bech32 is case-insensitive) raises nothing.
+    const paid = { ...payout, transfers: [{ to: "bc1qrecipient", asset: "native", amount: 1000n }] };
+    const ok = { ...success, recipient: "BC1QRECIPIENT" };
+    expect(findings(observations(ok, "2026-10-13T08:00:00.000Z", { destinationTxs: [paid] }))).toEqual([]);
   });
 });
