@@ -1,7 +1,7 @@
 # Waybill
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
-![Tests](https://img.shields.io/badge/tests-19%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-30%20passing-brightgreen)
 ![Onchain](https://img.shields.io/badge/onchain-NEAR%20mainnet%20(read--only)-blue)
 ![Loop](https://img.shields.io/badge/loop-quote%20%E2%86%92%20deposit%20%E2%86%92%20settle%20%E2%86%92%20payout-blueviolet)
 ![Stack](https://img.shields.io/badge/stack-Next.js%20+%20TypeScript%20+%20NEAR%20RPC-orange)
@@ -86,6 +86,9 @@ Explorer page  ─┘      │
                        └─> NEAR settlement txs (intents.near events) + origin/destination chain receipts
 ```
 
+Deposits and payouts are read on their own chains: eight EVM chains, Bitcoin, Solana, Tron and TON.
+A payout is only "verified" when the transaction is final and delivered the quoted token to the quoted recipient; a final transaction that paid someone else, or in another token, is a critical finding.
+
 Settlement is read from `intents.near` events (`dip4` `intents_executed`, `nep245` `mt_transfer`) through an archival NEAR RPC, so a SUCCESS that never paid the recipient is caught.
 
 ### Find a wrong-chain deposit
@@ -159,7 +162,13 @@ flowchart TB
 | `sources/oneclick.ts` | 1Click status (signed quote, tx hashes) and the public token list |
 | `sources/explorer.ts` | Explorer API search and history pages (JWT) and the public explorer page fallback |
 | `sources/near-rpc.ts` | NEAR transactions and their `intents.near` events and token movements |
+| `sources/chains.ts` | The one transaction shape every chain reader returns, address normalization, `paidTo` |
+| `sources/chain-read.ts` | Picks the reader for a chain and asset; says when Waybill cannot read one |
 | `sources/evm-rpc.ts` | Receipts on eight EVM chains, native and ERC-20 transfers to an address |
+| `sources/btc.ts` | Bitcoin transactions from mempool.space: confirmation and outputs |
+| `sources/solana.ts` | Solana transactions (including version 1) from the public RPC: SOL and SPL balance increases by owner |
+| `sources/tron.ts` | Tron from TronGrid: native TRX transfers and TRC-20 Transfer logs, hex to base58check addresses |
+| `sources/ton.ts` | TON from toncenter: the recipient wallet's credit, raw and user-friendly addresses |
 | `verify.ts` | Quote signature check through the official 1Click SDK |
 | `legs.ts` | Quote, deposit, settlement, payout states from the observations |
 | `rules.ts` | Findings: deadline passed, PROCESSING with no intent, wrong chain, paid elsewhere, private leg |
@@ -196,7 +205,12 @@ The Confidential Intents treasury (`51e8f94d…7cbe`, `PRIVATE_TREASURY_ACCOUNT_
 **The Explorer API is not the whole picture.** By default it hides `PENDING_DEPOSIT` and `INCOMPLETE_DEPOSIT`, so the tracker asks for every status; and it does not list Confidential Intents swaps at all (near/intents#384 is on the public explorer page but absent from the API), so route statistics cover public swaps only.
 It also has no completion time, so Waybill reports outcomes per route, not durations.
 
+**A failed read is not a missing transaction.** Public RPCs fail, rate-limit and change (Solana started serving version 1 transactions, which older clients are refused); every reader throws on an RPC error, so it shows as a source failure instead of "the chain does not have this transaction".
+
+**Each chain says "paid" differently.** Solana tokens are credited to a token account, so Waybill matches the account's owner; Tron logs carry hex addresses, converted to the `T…` base58check form; a TON payout to a new wallet is marked aborted yet credited, so Waybill counts the credit and treats only a bounce as failure.
+
 **Fixtures are recorded, not written.** `pnpm fixtures:record` captures real mainnet responses; tests replay them, so they fail if parsing drifts from what the services really return.
+The recorder retries a case whose sources failed and refuses to save it if they keep failing, so a fixture never bakes in a flaky node.
 
 ## What's real vs pending
 
@@ -209,7 +223,9 @@ It also has no completion time, so Waybill reports outcomes per route, not durat
 | Case file download with evidence hashes | Real |
 | Explorer API lookup of any swap | Real - tested with a partner JWT on 2026-11-07 |
 | Route reliability from a day of Explorer API history | Real - `pnpm routes:collect`, rendered at `/routes` |
-| Payout verification on non-EVM chains (BTC, Solana, Tron, TON) | Not yet established |
+| Payout verification on EVM chains, Bitcoin, Solana, Tron and TON: right recipient, right token, amount | Real - read from each chain |
+| Deposit verification on the same chains | Real - read from each chain |
+| TON jetton (for example USDT on TON) payouts | Not yet established - reported, not verified |
 | Watch mode and alerts | Not yet established |
 | NEAR AI Cloud plain-language summary | Not yet established |
 | On-chain case anchoring | Not yet established |
@@ -220,8 +236,9 @@ Open question: why some status-embedded quotes do not verify with `verifyQuoteSi
 
 | Suite | Tests | Covers |
 | --- | --- | --- |
-| `trace.test.ts` | 5 | Recorded mainnet cases: #384, #382, a signed refund, a live Ethereum to Tron swap, case hash |
-| `rules.test.ts` | 5 | #399's shape (rebuilt from the issue text), grace period, terminal states, disagreement, wrong recipient |
+| `trace.test.ts` | 10 | Recorded mainnet cases: #384, #382, a signed refund, payouts read on Tron, Bitcoin, Solana, Tron (TRX) and TON, a Solana v1 deposit, case hash |
+| `rules.test.ts` | 6 | #399's shape (rebuilt from the issue text), grace period, terminal states, disagreement, wrong recipient on NEAR and on Bitcoin |
+| `chains.test.ts` | 5 | Tron base58check, TON raw addresses, case folding per chain, `paidTo` by recipient and asset |
 | `swap.test.ts` | 4 | Asset chain mapping, explorer page record extraction |
 | `routes.test.ts` | 5 | Wilson interval, route grouping, incomplete deposits kept out of rates, de-duplication, snapshot encoding |
 
@@ -230,7 +247,7 @@ cd Waybill
 pnpm test && pnpm typecheck && pnpm lint && pnpm build
 ```
 
-All four pass as of 2026-11-07.
+All four pass as of 2026-11-10.
 
 ## Run it locally
 
