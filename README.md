@@ -1,7 +1,7 @@
 # Waybill
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
-![Tests](https://img.shields.io/badge/tests-30%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-36%20passing-brightgreen)
 ![Onchain](https://img.shields.io/badge/onchain-NEAR%20mainnet%20(read--only)-blue)
 ![Loop](https://img.shields.io/badge/loop-quote%20%E2%86%92%20deposit%20%E2%86%92%20settle%20%E2%86%92%20payout-blueviolet)
 ![Stack](https://img.shields.io/badge/stack-Next.js%20+%20TypeScript%20+%20NEAR%20RPC-orange)
@@ -26,6 +26,7 @@ Waybill holds no keys, moves no money and cannot recover funds; it only reads pu
 - [Screenshots](#screenshots)
 - [The one rule](#the-one-rule)
 - [What Waybill does](#what-waybill-does)
+  - [Check before sending](#check-before-sending)
   - [Trace a swap](#trace-a-swap)
   - [Find a wrong-chain deposit](#find-a-wrong-chain-deposit)
   - [Check the quote signature](#check-the-quote-signature)
@@ -74,6 +75,19 @@ Not captured yet. They will show the tracker for #382 (not found, wrong chain), 
 3. *Findings* - rules state what the evidence shows and the documented promise it breaks, never a guessed cause (`packages/core/src/rules.ts`).
 
 ## What Waybill does
+
+### Check before sending
+
+Paste a deposit address and choose "Check before sending" (`/check/<address>`).
+Waybill reads the quote 1Click signed and answers with one verdict, OK to send, Check first or Do not send, and the exact instruction: how much, of which token, on which chain, to which address, before when.
+
+```text
+Send exactly 22076.475458 USDC on Arbitrum
+To 0x8029d95FD6aa7042164Ec8399Ea72Fc73cA9d4d7, before 2026-11-12 10:46 UTC
+```
+
+It stops a sender when the address was already used, the quote's deadline passed, or the address went inactive; warns when too little time is left for the deposit to confirm on its chain, when a memo is required, or when the route often refunds; and notes that an EVM deposit address is watched on one chain only, the mistake in near/intents#382.
+The amount follows the quote's swap type: exactly `amountIn` for `EXACT_INPUT`, at least `minAmountIn` for `EXACT_OUTPUT` and `FLEX_INPUT`.
 
 ### Trace a swap
 
@@ -173,6 +187,7 @@ flowchart TB
 | `legs.ts` | Quote, deposit, settlement, payout states from the observations |
 | `rules.ts` | Findings: deadline passed, PROCESSING with no intent, wrong chain, paid elsewhere, private leg |
 | `case.ts` | The Markdown case file and its hash |
+| `presend.ts` | The pre-send verdict, instruction and checks for an unfunded quote |
 | `routes.ts` | Route snapshot format, per-route outcomes and Wilson intervals |
 | `trace.ts` | `observe` (gather) and `judge` (decide), kept separate so judging is pure and testable |
 | `replay.ts` | Record and replay real HTTP traffic for tests |
@@ -226,9 +241,13 @@ The recorder retries a case whose sources failed and refuses to save it if they 
 | Payout verification on EVM chains, Bitcoin, Solana, Tron and TON: right recipient, right token, amount | Real - read from each chain |
 | Deposit verification on the same chains | Real - read from each chain |
 | TON jetton (for example USDT on TON) payouts | Not yet established - reported, not verified |
+| Pre-send check of a deposit address against its signed quote | Real - `/check/<address>`, tested on recorded live quotes |
 | Watch mode and alerts | Not yet established |
 | NEAR AI Cloud plain-language summary | Not yet established |
 | On-chain case anchoring | Not yet established |
+
+The pre-send check treats a signature that is present but fails this check as a note, not a warning: about half of genuine live quotes fail it, and no signed field or value separates them from those that pass.
+A quote with no signature at all is still a warning.
 
 Open question: why some status-embedded quotes do not verify with `verifyQuoteSignature` from `@defuse-protocol/one-click-sdk-typescript@0.1.26` while others do.
 
@@ -238,6 +257,7 @@ Open question: why some status-embedded quotes do not verify with `verifyQuoteSi
 | --- | --- | --- |
 | `trace.test.ts` | 10 | Recorded mainnet cases: #384, #382, a signed refund, payouts read on Tron, Bitcoin, Solana, Tron (TRX) and TON, a Solana v1 deposit, case hash |
 | `rules.test.ts` | 6 | #399's shape (rebuilt from the issue text), grace period, terminal states, disagreement, wrong recipient on NEAR and on Bitcoin |
+| `presend.test.ts` | 6 | Recorded unfunded quotes: fresh, minutes left, expired; a used address, #382, an unreliable route |
 | `chains.test.ts` | 5 | Tron base58check, TON raw addresses, case folding per chain, `paidTo` by recipient and asset |
 | `swap.test.ts` | 4 | Asset chain mapping, explorer page record extraction |
 | `routes.test.ts` | 5 | Wilson interval, route grouping, incomplete deposits kept out of rates, de-duplication, snapshot encoding |
@@ -247,7 +267,7 @@ cd Waybill
 pnpm test && pnpm typecheck && pnpm lint && pnpm build
 ```
 
-All four pass as of 2026-11-10.
+All four pass as of 2026-11-13.
 
 ## Run it locally
 
@@ -274,8 +294,8 @@ pnpm dev  # http://localhost:3020
 
 ## The one-flow demo
 
-1. Open http://localhost:3020.
-2. Paste `0xDF7A93d400159d0f8f40AAe42576d01285EA9e39` and the transaction `0x4ae0bb73e8efe79bf5a3aedeb0302371ab0d7fe0a918ebd0b1c8054a9807c593`.
+1. Open http://localhost:3020, paste a fresh deposit address from any NEAR Intents wallet and choose "Check before sending" to see what to send, where and by when.
+2. Back on the home page, paste `0xDF7A93d400159d0f8f40AAe42576d01285EA9e39` and the transaction `0x4ae0bb73e8efe79bf5a3aedeb0302371ab0d7fe0a918ebd0b1c8054a9807c593`.
 3. See the stamp "Not found", the Deposit leg in conflict with a Basescan link, and the finding "Deposit landed on Base".
 4. Click "Download case file" and see the Markdown packet with every response's SHA-256.
 5. Open http://localhost:3020/routes and see a day of swaps per route; click any stuck swap to trace it.
@@ -302,7 +322,7 @@ Waybill/
     src/            sources, legs, rules, case, trace (tests next to the code)
     fixtures/       recorded mainnet responses for the test cases
   data/routes/      snapshot.json.gz: a day of Explorer API history for /routes
-  apps/web/         Next.js tracker: /, /track/[address], /track/[address]/case, /routes
+  apps/web/         Next.js tracker: /, /check/[address], /track/[address], /track/[address]/case, /routes
   scripts/          trace.ts (CLI), record-fixtures.ts, collect-routes.ts
 ```
 
@@ -319,8 +339,8 @@ No code from earlier projects is reused; all code was written during the hackath
 
 ### Roadmap
 
-1. Payout reads for BTC, Solana, Tron and TON.
-2. Pre-send check of a deposit address against its signed quote.
+1. Payout reads for TON jettons.
+2. Refunds read on the origin chain.
 3. NEAR AI Cloud summary where every sentence cites an evidence row.
 4. Case hashes anchored on NEAR.
 5. Watch mode for wallets: alert when a swap passes its deadline, case file attached.
