@@ -26,8 +26,9 @@ export default function Home() {
           Where is my swap?
         </h1>
         <p className="text-lg leading-relaxed text-muted text-pretty">
-          Paste a NEAR Intents deposit address. Waybill asks 1Click, the explorer and the chains themselves, shows each leg
-          of the swap, and points at the exact spot where the sources stop agreeing.
+          Paste a NEAR Intents deposit address. Before you send, Waybill checks the quote: what to send, on which chain, by
+          when. After, it asks 1Click, the explorer and the chains themselves, shows each leg of the swap, and points at the
+          exact spot where the sources stop agreeing.
         </p>
       </section>
 
@@ -55,12 +56,21 @@ export default function Home() {
             className="w-full rounded-sm border border-rule-strong bg-paper-2 px-3 py-3 font-mono text-sm placeholder:text-muted/70 focus:border-reported"
           />
         </label>
-        <button
-          type="submit"
-          className="rounded-sm bg-ink px-5 py-3 font-mono text-sm font-medium tracking-[0.1em] text-paper uppercase transition-transform duration-150 ease-out hover:-translate-y-px active:translate-y-0"
-        >
-          Trace this swap
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="submit"
+            className="rounded-sm bg-ink px-5 py-3 font-mono text-sm font-medium tracking-[0.1em] text-paper uppercase transition-transform duration-150 ease-out hover:-translate-y-px active:translate-y-0"
+          >
+            Trace this swap
+          </button>
+          <button
+            type="submit"
+            formAction="/check"
+            className="rounded-sm border border-ink px-5 py-3 font-mono text-sm font-medium tracking-[0.1em] uppercase transition-colors duration-150 hover:bg-paper-2"
+          >
+            Check before sending
+          </button>
+        </div>
       </form>
 
       <section className="space-y-3">
