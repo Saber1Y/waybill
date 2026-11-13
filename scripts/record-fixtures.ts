@@ -1,5 +1,6 @@
-// Usage: pnpm fixtures:record
-// Re-captures every fixture case from live mainnet sources. Commit the result with the date it was taken.
+// Usage: pnpm fixtures:record [case ...]
+// Re-captures fixture cases (all, or the ones named) from live mainnet sources. Commit the result with the date it was taken.
+// The pre-send cases are unfunded quotes: re-recording them later captures them expired, which changes what they test.
 import { writeFile } from "node:fs/promises";
 import { observe, recordingFetch, type RecordedExchange, type Recording } from "@waybill/core";
 
@@ -48,9 +49,25 @@ const CASES: Omit<Recording, "recordedAt" | "exchanges">[] = [
     description: "A live ETH to TON swap whose payout credits a brand-new wallet (TON marks it aborted, yet credited).",
     input: { depositAddress: "0x297b5c8F4901cd78B81687e1Ffff82Dcd3e55744" },
   },
+  {
+    case: "presend-fresh-quote",
+    description: "An unfunded EXACT_INPUT quote on BNB Chain with 30 minutes to its deadline: safe to send, on that chain only.",
+    input: { depositAddress: "0x300b11bA0B8C5a026c343893819Ac273f942E900" },
+  },
+  {
+    case: "presend-short-deadline",
+    description: "An unfunded Tron quote whose deadline is three minutes after it was issued: too little time to confirm.",
+    input: { depositAddress: "TPLfDR9Jm3EMk2wCjv8yKpREeK87ds4fkW" },
+  },
+  {
+    case: "presend-expired-quote",
+    description: "An unfunded quote recorded after its one-minute deadline: a deposit now would be refunded, not swapped.",
+    input: { depositAddress: "726ec9c46caa603734a50afea2b710e9b0ddb2f7451df96054ca673fc7db70e7" },
+  },
 ];
 
-for (const c of CASES) {
+const only = process.argv.slice(2);
+for (const c of CASES.filter((c) => only.length === 0 || only.includes(c.case))) {
   const recording = await recordCase(c);
   const path = new URL(`../packages/core/fixtures/${c.case}.json`, import.meta.url);
   await writeFile(path, `${JSON.stringify(recording, null, 2)}\n`);
