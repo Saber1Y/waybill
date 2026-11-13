@@ -6,9 +6,15 @@ import "./globals.css";
 const sans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-plex-sans" });
 const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-plex-mono" });
 
+const DESCRIPTION =
+  "Check a NEAR Intents deposit address before you send, track every leg of the swap on the chains themselves, and get a case file when it stalls.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3020"),
   title: "Waybill",
-  description: "Track a NEAR Intents swap leg by leg, from independent sources, and get a case file when it stalls.",
+  description: DESCRIPTION,
+  openGraph: { title: "Waybill: where is my swap?", description: DESCRIPTION, siteName: "Waybill", type: "website" },
+  twitter: { card: "summary_large_image", title: "Waybill: where is my swap?", description: DESCRIPTION },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
