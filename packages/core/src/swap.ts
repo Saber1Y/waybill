@@ -59,7 +59,8 @@ export function assetChain(assetId: string, tokens?: Map<string, { blockchain: s
   const oneClick = /^1cs_v\d+:([a-z0-9]+):/.exec(assetId);
   if (oneClick?.[1]) return oneClick[1];
   const token = assetId.replace(/^nep\d+:/, "");
-  const omft = /^([a-z0-9]+)(?:-[^.]+)?\.omft\.near$/.exec(token);
+  // Bridged tokens: "eth-0x….omft.near", and the newer "bnb-0x….omdep.near".
+  const omft = /^([a-z0-9]+)(?:-[^.]+)?\.(?:omft|omdep)\.near$/.exec(token);
   if (omft?.[1]) return omft[1];
   return "near";
 }

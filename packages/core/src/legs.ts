@@ -190,11 +190,14 @@ function txLink(tx: ChainTx, kind: string): { label: string; href: string } {
 
 /** Raw units to "49.836098 USDT"; the raw integer when the token is unknown. */
 export function formatAmount(amount: bigint, token: TokenInfo | undefined): string {
-  if (!token) return amount.toString();
-  const scale = 10n ** BigInt(token.decimals);
-  const whole = amount / scale;
-  const fraction = (amount % scale).toString().padStart(token.decimals, "0").replace(/0+$/, "");
-  return `${whole}${fraction ? `.${fraction}` : ""} ${token.symbol}`;
+  return token ? `${formatUnits(amount, token.decimals)} ${token.symbol}` : amount.toString();
+}
+
+/** Raw units to a decimal string: 15007338588 with 6 decimals is "15007.338588". */
+export function formatUnits(amount: bigint, decimals: number): string {
+  const scale = 10n ** BigInt(decimals);
+  const fraction = (amount % scale).toString().padStart(decimals, "0").replace(/0+$/, "");
+  return `${amount / scale}${fraction ? `.${fraction}` : ""}`;
 }
 
 /** "WBTC on Ethereum"-style label from the token list; the raw asset id when the list does not have it. */
