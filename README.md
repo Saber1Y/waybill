@@ -6,14 +6,20 @@
 ![Loop](https://img.shields.io/badge/loop-quote%20%E2%86%92%20deposit%20%E2%86%92%20settle%20%E2%86%92%20payout-blueviolet)
 ![Stack](https://img.shields.io/badge/stack-Next.js%20+%20TypeScript%20+%20NEAR%20RPC-orange)
 
-**Where is my swap? Leg by leg, from sources that can disagree.**
+**Where is my swap? Checked before you send, read from the chains after.**
 
 When a NEAR Intents swap stalls, the user gets one status string and a support queue.
-Waybill asks 1Click, the NEAR Intents explorer and the chains themselves about one deposit address, draws each leg of the swap, and marks the exact leg where the sources stop agreeing.
-When a documented promise is broken, it writes a case file with every response it used, hashed, ready to paste into a support ticket or a GitHub issue.
-Its route reliability page counts a full day of NEAR Intents swaps per chain route, so anyone can see how often a route completes before sending.
+Waybill takes one deposit address and answers three questions from evidence, not from a status field:
 
-Live frontend: https://waybill-gules.vercel.app · Backend: none, read-only server components · Contracts: none yet.
+- *Before sending:* is this address safe to pay, and exactly what should I send, on which chain, by when?
+- *After sending:* where is the money? Each leg (quote, deposit, settlement on NEAR, payout) is read on its own chain: eight EVM chains, Bitcoin, Solana, Tron, TON and NEAR.
+- *Choosing a route:* how often does this route actually complete? A full day of real swaps, 19,937 of them, per chain route.
+
+When a documented promise is broken, Waybill writes a case file with every response it used, hashed, ready to paste into a support ticket or a GitHub issue.
+
+Live frontend: https://waybill-gules.vercel.app · Backend: none, read-only server components · Contracts: none, Waybill only reads.
+
+**Try it live:** [check an address before sending](https://waybill-gules.vercel.app) · [a delivered Tron swap, every leg verified](https://waybill-gules.vercel.app/track/TLNavkAmFWDUgfGKpUYq1Nr82d1g2sfQ5S) · [near/intents#382, money sent on the wrong chain](https://waybill-gules.vercel.app/track/0xDF7A93d400159d0f8f40AAe42576d01285EA9e39?tx=0x4ae0bb73e8efe79bf5a3aedeb0302371ab0d7fe0a918ebd0b1c8054a9807c593) · [route reliability](https://waybill-gules.vercel.app/routes)
 
 [See it in one command](#see-it-in-one-command) · [The one rule](#the-one-rule) · [What Waybill does](#what-waybill-does) · [What's real vs pending](#whats-real-vs-pending) · [The one-flow demo](#the-one-flow-demo)
 
@@ -64,7 +70,17 @@ The second starts the web app; open it and pick one of the real cases on the hom
 
 ## Screenshots
 
-Not captured yet. They will show the tracker for #382 (not found, wrong chain), #384 (private leg) and a live refunded swap, in light and dark themes.
+Captured from the live deployment on 2026-11-14, against real mainnet swaps.
+
+![Check before sending: a live unfunded quote, OK to send, with the exact amount, chain, deadline and the checks behind the verdict](docs/screenshots/check.png)
+
+![Track a swap: USDT on Tron to TRX on Tron, delivered, with the quote signature checked and the deposit, settlement and payout each read on-chain](docs/screenshots/track.png)
+
+![near/intents#382: no NEAR Intents source knows the address, and Waybill finds the deposit on Base instead of Ethereum](docs/screenshots/wrong-chain.png)
+
+![Route reliability: a day of 19,937 swaps, the least reliable routes and each route's completion rate with a 95% interval](docs/screenshots/routes.png)
+
+<img src="docs/screenshots/routes-mobile.png" alt="Route reliability at phone width, with the compact route table" width="300">
 
 ## The one rule
 
