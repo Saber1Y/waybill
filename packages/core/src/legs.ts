@@ -27,7 +27,7 @@ function quoteLeg(obs: Observations, p: SwapRecord | null): Leg {
   const terms = [
     p.amountInFormatted ? `${p.amountInFormatted} ${tokenLabel(p.originAsset, obs)}` : tokenLabel(p.originAsset, obs),
     p.destinationAsset ? `to ${tokenLabel(p.destinationAsset, obs)}` : null,
-    p.deadline ? `deadline ${p.deadline}` : null,
+    p.deadline ? `deadline ${utc(p.deadline)}` : null,
     p.refundTo ? `refunds to ${p.refundTo}` : null,
   ].filter(Boolean);
   const signed =
@@ -86,7 +86,7 @@ function settlementLeg(obs: Observations, p: SwapRecord | null): Leg {
   const executed = obs.nearTxs.filter((tx) => tx.found && tx.events.some((e) => e.event === "intents_executed"));
   if (executed.length > 0) {
     const moved = executed.flatMap((tx) => tx.movements).length;
-    return { ...base, state: "verified", summary: `${executed.length} settlement transaction(s) executed on intents.near, ${moved} token movement(s) read from the chain.` };
+    return { ...base, state: "verified", summary: `${count(executed.length, "settlement transaction")} executed on intents.near, ${count(moved, "token movement")} read from the chain.` };
   }
   if (p.status === "PROCESSING" && p.intentHashes.length === 0) {
     return { ...base, state: "missing", summary: "No intent has been created, so no solver has executed this swap." };
@@ -145,7 +145,7 @@ function payoutLeg(obs: Observations, p: SwapRecord | null): Leg {
   }
   if (check.pending.length > 0) return { ...base, state: "waiting", summary: `The payout transaction on ${chainLabel(check.chain)} is not final yet.` };
   if (check.absent.length > 0) return { ...base, state: "missing", summary: `1Click lists a payout transaction that ${chainLabel(check.chain)} does not have.` };
-  if (p.destinationTxHashes.length > 0) return { ...base, state: "reported", summary: `1Click lists ${p.destinationTxHashes.length} payout transaction(s) on a chain Waybill cannot read yet.` };
+  if (p.destinationTxHashes.length > 0) return { ...base, state: "reported", summary: `1Click lists ${count(p.destinationTxHashes.length, "payout transaction")} on a chain Waybill cannot read yet.` };
   return { ...base, state: "missing", summary: "Reported SUCCESS, but no payout transaction is listed." };
 }
 
@@ -204,4 +204,15 @@ export function formatUnits(amount: bigint, decimals: number): string {
 export function tokenLabel(assetId: string, obs: Pick<Observations, "tokens">): string {
   const token = obs.tokens.get(assetId);
   return token ? `${token.symbol} on ${chainLabel(token.blockchain)}` : assetId;
+}
+
+/** "1 settlement transaction", "3 settlement transactions" */
+function count(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
+}
+
+/** "2026-11-13T13:57:32.000Z" as "2026-11-13 13:57 UTC"; anything unparseable as given. */
+function utc(iso: string): string {
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? iso : `${new Date(ms).toISOString().replace("T", " ").slice(0, 16)} UTC`;
 }
